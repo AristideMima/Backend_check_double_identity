@@ -1,4 +1,3 @@
-/static/images_extracted
-/static/docs
-/static/model/facenet_keras.h5
+/static
 /frontend
+identity.sql
