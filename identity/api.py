@@ -7,23 +7,81 @@ from django.http import JsonResponse
 from .model_utils import get_image_from_file
 from django.core import serializers
 from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.parsers import BaseParser, MultiPartParser
+from rest_framework import views
+import cv2 as cv
+import io
+import numpy as np
+from PIL import Image
+
+
+PREFIX_URL = "http://127.0.0.1:8000/static/images_extracted/"
+POST_URL = "/1_0.jpeg "
+
+
+class FileUpload(views.APIView):
+    """
+        Class based file upload
+    """
+    parser_classes = [MultiPartParser]
+
+    def put(self, request, format=None):
+
+        # print(request.data['file'].read())
+        file = request.data['file']
+
+        if file:
+            image = Image.open(file).convert('RGB')
+            img = np.array(image)
+            open_cv_image = img[:, :, ::-1].copy()
+
+            datas = list(Client.objects.all().values())
+
+            # Get prediction results if it exists
+            predictions = get_image_from_file(picture=open_cv_image)
+
+            if predictions is not None:
+
+                response = {tup[1]: tup[0] for tup in predictions}
+
+                # Add probability field and value
+                for doc in datas:
+                    accounts_number_val = doc['account_number']
+
+                    doc['probability'] = response[accounts_number_val]
+                    doc['image_url'] = PREFIX_URL + accounts_number_val + POST_URL
+
+                return Response(datas)
+
+        return Response({})
+
+
+# @api_view(['POST'])
+# def detect_from_picture(request, format=None):
+#     print("i'm there")
+#     print(request)
+#     print(request.FILES.getlist('file'))
+#
+#     return Response({})
 
 
 # Client ViewSet
 class ClientView(viewsets.ModelViewSet):
-
     queryset = Client.objects.all()
     permission_classes = [
         permissions.IsAuthenticated
     ]
     serializer_class = ClientSerializer
 
-    # def list(self, request):
-    #
-    #     get_image_from_file("00010951002")
-    #
-    #     a = {"res": "yes"}
-    #     return Response(a)
+    def list(self, request):
+
+        datas = list(Client.objects.all().values())
+        for doc in datas:
+            doc['image_url'] = PREFIX_URL + doc['account_number'] + POST_URL
+        # serializer = ClientSerializer(datas, many=True)
+
+        return Response(datas)
 
     # def get_queryset(self):
     #
@@ -73,8 +131,6 @@ class ClientView(viewsets.ModelViewSet):
                     # Get all accounts values
                     accounts_number = [tup[1] for tup in predictions]
 
-                    print(accounts_number)
-
                     # Get all accounts
                     data = list(self.queryset.filter(account_number__in=accounts_number).values())
 
@@ -83,8 +139,7 @@ class ClientView(viewsets.ModelViewSet):
                         accounts_number_val = doc['account_number']
 
                         doc['probability'] = response[accounts_number_val]
-
-                    print(data)
+                        doc['image_url'] = PREFIX_URL + accounts_number_val + POST_URL
 
                     return Response(data)
 

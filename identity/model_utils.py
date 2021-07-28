@@ -1,6 +1,5 @@
 #  MODEL UTILS FILE: this file contains all about models we will use for our application:
 
-
 # import pytesseract
 import fitz
 import io
@@ -18,7 +17,7 @@ from joblib import load
 # Constants
 
 # detector = MTCNN()  # face extractor
-DIRECTORY = "static/docs"
+DIRECTORY = "static/images_extracted"
 
 MODEL_FACE_EXTRACT_PATH = "static/model/face_detector.xml"
 SCALE_FACTOR = 1.3
@@ -63,112 +62,65 @@ def func_cv_cascade(image):
 
 
 # Function to extract image inside legal folder
-def get_image_from_file(account_number):
+def get_image_from_file(account_number=None, picture = None):
     """
     Whole function to loop inside scanned file, extract image and associate it to account number
     :param account_number: User account number to check
     :return: Image and account number founded
     """
 
-    print(account_number)
+    try:
 
-    path_folder = DIRECTORY + "/" + account_number
+        # read image and process it
 
-    # Get corresponding document file
-    path = os.path.join(path_folder, "*.pdf")
+        if picture is None:
+            path_folder = DIRECTORY + "/" + account_number
 
-    file_path = glob(path)[0]
+            # Get corresponding document file
+            path = os.path.join(path_folder, "*.jpeg")
+            #
+            file_path = glob(path)[0]
+            if file_path is not None:
+                img = cv.imread(file_path)
 
-    if file_path is not None:
+        else:
+            img = picture
 
-        try:
-            file = fitz.open(file_path)
+        face = cv.resize(img, (160, 160))
 
-            # Loop through all  page and images list
-            for page_index in range(len(file)):
+        model_embed = load_model(MODEL_FACE_EMBED_PATH)
 
-                page = file[page_index]
-                images_list = page.getImageList()
+        embedding = get_embedding(model_embed, face)
 
-                images_number = len(images_list)
+        # print(face.shape)
+        #
+        # print(embedding.shape)
 
-                # print(" images: {}".format(images_number))
+        formatted_embedding = np.expand_dims(embedding, axis=0).reshape((1, -1))
 
-                if images_number != 0:
-                    # Extract corresponding face
+        # print(formatted_embedding.shape)
 
-                    for image_index, img in enumerate(images_list, start=1):
+        # Load pre-trained face model and  Classify the face
+        model_classify = load(MODEL_FACE_ClASS_PATH)
 
-                        xref = img[0]
+        probabilities = model_classify.predict_proba(formatted_embedding).reshape(-1).tolist()
+        classes = model_classify.classes_.tolist()
 
-                        # extract image bytes
-                        base_image = file.extractImage(xref)
-                        image_bytes = base_image["image"]
+        predictions = list(zip(probabilities, classes))
+        predictions.sort(reverse=True)
 
-                        # get image extension
-                        # image_ext = base_image["ext"]
+        # max_prob = np.argmin(probabilities)
+        #
+        # probability = 1 - probabilities [0][max_prob]
+        #
+        # prediction = (probability, model_classify.classes_[max_prob])
 
-                        # Load PIL
-                        pil_image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        return predictions
 
-                        # print(pil_image)
+    except Exception as e:
+        print("Error : {}".format(e))
 
-                        image = np.array(pil_image)
-                        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
-
-                        faces = func_cv_cascade(image)
-
-                        face = None
-
-                        if len(faces[0]) is not 0:
-
-                            box = faces[0][0]
-                            x, y, h, w = box
-                            img = image[y:y + h, x:x + w]
-
-                            face = cv.resize(img, (160, 160))
-
-                            # cv.imshow("im", img)
-                            # cv.waitKey(0)
-
-                        # Generate face embedding
-
-                        if face is not None:
-                            # load pre-trained model and generate embedding
-
-                            model_embed = load_model(MODEL_FACE_EMBED_PATH)
-
-                            embedding = get_embedding(model_embed, face)
-
-                            # print(face.shape)
-                            #
-                            # print(embedding.shape)
-
-                            formatted_embedding = np.expand_dims(embedding, axis=0).reshape((1, -1))
-
-                            # print(formatted_embedding.shape)
-
-                            # Load pre-trained face model and  Classify the face
-                            model_classify = load(MODEL_FACE_ClASS_PATH)
-
-                            probabilities = model_classify.predict_proba(formatted_embedding).reshape(-1).tolist()
-                            classes = model_classify.classes_.tolist() 
-
-                            predictions = list(zip(probabilities, classes))
-                            predictions.sort(reverse=True)
-
-                            # max_prob = np.argmin(probabilities)
-                            #
-                            # probability = 1 - probabilities [0][max_prob]
-                            #
-                            # prediction = (probability, model_classify.classes_[max_prob])
-
-                            return predictions[:5]
-
-        except Exception as e:
-            print("Error : {}".format(e))
-
-        return None
+    return None
 
 
 # Model loading and training functions
