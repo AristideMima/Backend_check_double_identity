@@ -38,6 +38,8 @@ we used Transfer learning to associate a matrix representation with each image, 
 - The software engineering part: It consisted in developing a rest backend API for the management of services and a part
 frontend for the communication interfaces, thus allowing the production of the built model.
 
+This is just the backend repository, the frontEnd part is in another repository
+
 ## Built With
 
 We used the following main languages and librairies
